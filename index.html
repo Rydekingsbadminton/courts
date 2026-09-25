@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Court rotation</title>
+<meta name="theme-color" content="#154D39">
+<meta name="description" content="Fair, balanced doubles rotation for badminton club nights.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Courts">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF1EC; --surface:#FFFFFF; --ink:#16211C; --muted:#5B6961; --border:#D2DAD4;
+  --floor:#1E6A4F; --floor-deep:#154D39; --line:#F4F7F2;
+  --shuttle:#E9D94B; --shuttle-ink:#2A2600; --danger:#A3322A; --soft:#E3EAE5;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1714; --surface:#17221D; --ink:#E6EEE9; --muted:#9AABA2; --border:#2B3A33;
+    --floor:#1B5C45; --floor-deep:#10372A; --danger:#E0776E; --soft:#1F2C26;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1714; --surface:#17221D; --ink:#E6EEE9; --muted:#9AABA2; --border:#2B3A33;
+  --floor:#1B5C45; --floor-deep:#10372A; --danger:#E0776E; --soft:#1F2C26;
+  color-scheme:dark;
+}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);background:var(--floor-deep)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:400 1rem/1.5 Barlow,"Segoe UI",system-ui,-apple-system,sans-serif}
+h1,h2,h3{font-family:"Barlow Condensed","Arial Narrow","Segoe UI",sans-serif;font-weight:700;line-height:1.1;margin:0}
+p{margin:0}
+:focus-visible{outline:3px solid var(--shuttle);outline-offset:2px}
+
+header.top{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1.5rem;padding:1rem clamp(1rem,3vw,2rem);background:var(--floor-deep);color:var(--line)}
+header.top h1{font-size:2rem;letter-spacing:.01em}
+.summary{color:#C9DDD2;font-size:.98rem}
+nav.tabs{display:flex;gap:.25rem;margin-left:auto;flex-wrap:wrap}
+nav.tabs button{background:transparent;color:var(--line);border:0;padding:.55rem 1rem;border-radius:999px;font:600 1rem Barlow,sans-serif;cursor:pointer}
+nav.tabs button:hover{background:rgba(255,255,255,.08)}
+nav.tabs button[aria-selected="true"]{background:var(--shuttle);color:var(--shuttle-ink)}
+
+main{padding:1.25rem clamp(1rem,3vw,2rem) 3rem;max-width:1400px;margin:0 auto}
+.muted{color:var(--muted)}
+.small{font-size:.9rem}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;padding:.5rem 1rem;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--ink);font:600 1rem Barlow,sans-serif;cursor:pointer}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--floor);border-color:var(--floor);color:#fff}
+.btn.primary:hover{background:var(--floor-deep)}
+.btn.warn{color:var(--danger);border-color:var(--danger)}
+.btn.warn.armed{background:var(--danger);color:#fff}
+.btn.quiet{border-color:transparent;background:transparent;color:var(--muted)}
+.btn.quiet:hover{color:var(--ink)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+select,input[type=text],textarea{font:500 1rem Barlow,sans-serif;color:var(--ink);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .6rem;min-height:44px}
+textarea{width:100%;min-height:7rem;resize:vertical}
+
+.layout{display:grid;gap:1.5rem;grid-template-columns:1fr}
+@media (min-width:1000px){.layout{grid-template-columns:minmax(0,1fr) 310px}}
+.bar{display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;margin-bottom:1rem}
+
+.courts{display:grid;gap:1.25rem;grid-template-columns:repeat(auto-fill,minmax(min(100%,380px),1fr))}
+.court-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1rem;display:flex;flex-direction:column;gap:.75rem}
+.court-head{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.court-head h2{font-size:1.6rem;margin-right:auto}
+.court-head select{min-height:38px;padding:.3rem .5rem}
+
+.court{position:relative;aspect-ratio:13.4/6.1;background:var(--floor);border-radius:6px;overflow:hidden}
+.bound{position:absolute;inset:8px;border:2px solid var(--line)}
+.ln{position:absolute;background:var(--line);opacity:.8}
+.ss-t{left:0;right:0;top:7.5%;height:2px}
+.ss-b{left:0;right:0;bottom:7.5%;height:2px}
+.ls-l{top:0;bottom:0;left:5.7%;width:2px}
+.ls-r{top:0;bottom:0;right:5.7%;width:2px}
+.sh-l{top:0;bottom:0;left:35.2%;width:2px}
+.sh-r{top:0;bottom:0;left:64.8%;width:2px}
+.c-l{top:calc(50% - 1px);left:0;width:35.2%;height:2px}
+.c-r{top:calc(50% - 1px);left:64.8%;right:0;height:2px}
+.net{position:absolute;left:calc(50% - 2px);top:-10px;bottom:-10px;width:4px;background:repeating-linear-gradient(to bottom,var(--line) 0 5px,transparent 5px 8px)}
+.teams{position:absolute;inset:8px;display:grid;grid-template-columns:1fr 1fr}
+.side{display:grid;grid-template-rows:1fr 1fr;place-items:center;padding:0 4px}
+.pl{background:rgba(255,255,255,.94);color:#16211C;border-radius:6px;padding:.2rem .5rem;font:600 .98rem/1.25 Barlow,sans-serif;max-width:96%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl small{font-weight:500;color:#4A5A52;margin-left:.3rem}
+.fresh .pl{animation:drop .35s ease-out both}
+.fresh .side:nth-child(2) .pl{animation-delay:.08s}
+@keyframes drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.fresh .pl{animation:none}}
+.empty-court{position:absolute;inset:0;display:grid;place-items:center;color:var(--line);font:600 1.3rem "Barlow Condensed","Arial Narrow",sans-serif;opacity:.9}
+
+.meta{display:flex;flex-wrap:wrap;gap:.4rem .9rem;align-items:center;font-size:.95rem;color:var(--muted)}
+.tag{display:inline-block;background:var(--soft);color:var(--ink);border-radius:6px;padding:.05rem .5rem;font-weight:600}
+.note{border-left:3px solid var(--shuttle);padding:.25rem .6rem;font-size:.93rem;color:var(--muted);background:var(--soft);border-radius:0 6px 6px 0}
+.actions{display:flex;flex-wrap:wrap;gap:.5rem}
+
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1rem 1.1rem}
+.panel h2{font-size:1.5rem;margin-bottom:.5rem}
+.panel h3{font-size:1.25rem;margin:1rem 0 .4rem}
+.queue ol{list-style:none;margin:0;padding:0}
+.queue li{display:grid;grid-template-columns:1.8rem 1fr auto;gap:.5rem;align-items:baseline;padding:.45rem .3rem;border-bottom:1px solid var(--border)}
+.queue li:last-child{border-bottom:0}
+.queue li.next{background:color-mix(in srgb,var(--shuttle) 22%,transparent);border-radius:6px}
+.queue .pos{font:700 1.1rem "Barlow Condensed",sans-serif;color:var(--muted)}
+.queue .nm{font-weight:600}
+.queue .st{font-size:.88rem;color:var(--muted);text-align:right;white-space:nowrap}
+
+.rows{margin-top:.5rem}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .9rem;padding:.65rem 0;border-bottom:1px solid var(--border)}
+.row:last-child{border-bottom:0}
+.row .who{flex:1 1 12rem;min-width:0}
+.row .who strong{font-weight:600}
+.row .acts{display:flex;gap:.4rem;flex-wrap:wrap}
+.status-here{color:var(--floor)}
+:root[data-theme="dark"] .status-here{color:#7FD1AE}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .status-here{color:#7FD1AE}}
+
+.grid2{display:grid;gap:1.25rem;grid-template-columns:1fr}
+@media (min-width:900px){.grid2{grid-template-columns:1fr 1fr}}
+.form{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.form input[type=text]{flex:1 1 12rem}
+.guide{margin:.25rem 0 0;padding:0;list-style:none}
+.guide li{display:grid;grid-template-columns:2rem 1fr;gap:.5rem;padding:.35rem 0}
+.guide b{font:700 1.2rem "Barlow Condensed",sans-serif}
+.field{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center;padding:.75rem 0;border-bottom:1px solid var(--border)}
+.field:last-child{border-bottom:0}
+.field label{font-weight:600;min-width:12rem}
+.field p{flex-basis:100%;font-size:.93rem;color:var(--muted)}
+.empty-state{padding:1.5rem 0;color:var(--muted)}
+.hide{display:none}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Court rotation</h1>
+    <p class="summary" id="summary"></p>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" data-act="tab" data-tab="courts">Courts</button>
+    <button role="tab" data-act="tab" data-tab="checkin">Check in</button>
+    <button role="tab" data-act="tab" data-tab="members">Members</button>
+    <button role="tab" data-act="tab" data-tab="settings">Settings</button>
+  </nav>
+</header>
+<main id="app"></main>
+
+<script>
+(function(){
+var KEY='courtRotation.v1';
+var PAIRS=[[[0,1],[2,3]],[[0,2],[1,3]],[[0,3],[1,2]]];
+var MODES=[['any','Best match'],['mixed','Mixed doubles'],['level','Level doubles'],['open','Open']];
+
+function def(){return {members:[],present:{},courts:[],pairs:{},opps:{},played:0,seq:0,settings:{courts:4,flex:3,relax:true}};}
+var S=null;
+try{S=JSON.parse(localStorage.getItem(KEY));}catch(e){S=null;}
+if(!S||!Array.isArray(S.members)) S=def();
+var D=def();
+Object.keys(D).forEach(function(k){if(S[k]===undefined) S[k]=D[k];});
+Object.keys(D.settings).forEach(function(k){if(S.settings[k]===undefined) S.settings[k]=D.settings[k];});
+
+var tab='courts', search='', pending=null, freshCourt=-1;
+
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function now(){return Date.now();}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function uid(){return 'p'+now().toString(36)+Math.random().toString(36).slice(2,7);}
+function M(id){for(var i=0;i<S.members.length;i++){if(S.members[i].id===id) return S.members[i];}return null;}
+function key(a,b){return [a,b].sort().join('|');}
+function mins(t){return Math.max(0,Math.floor((now()-t)/60000));}
+function gw(id){var m=M(id);return m?m.g:'M';}
+function gr(id){var m=M(id);return m?m.grade:3;}
+
+function ensureCourts(){
+  var n=S.settings.courts;
+  while(S.courts.length<n) S.courts.push({mode:'any',game:null,note:''});
+  while(S.courts.length>n){var c=S.courts.pop(); if(c.game) restore(c.game);}
+}
+function restore(g){
+  g.teams[0].concat(g.teams[1]).forEach(function(id){
+    var p=S.present[id]; if(p&&g.since&&g.since[id]!==undefined) p.since=g.since[id];
+  });
+}
+function onCourt(){
+  var s={};
+  S.courts.forEach(function(c,i){if(c.game) c.game.teams[0].concat(c.game.teams[1]).forEach(function(id){s[id]=i+1;});});
+  return s;
+}
+function active(id){var p=S.present[id];return p&&!p.gone&&M(id);}
+function queue(){
+  var oc=onCourt();
+  return Object.keys(S.present).filter(function(id){return active(id)&&!S.present[id].rest&&!oc[id];})
+    .sort(function(a,b){var A=S.present[a],B=S.present[b];return (A.since-B.since)||(A.games-B.games)||(A.order-B.order);});
+}
+
+function isMixed(t){return gw(t[0])!==gw(t[1]);}
+function countW(t){return (gw(t[0])==='W'?1:0)+(gw(t[1])==='W'?1:0);}
+function valid(tA,tB,type){
+  if(type==='mixed') return isMixed(tA)&&isMixed(tB);
+  if(type==='level'){var g=gw(tA[0]);return gw(tA[1])===g&&gw(tB[0])===g&&gw(tB[1])===g;}
+  return true;
+}
+function labelFor(teams){
+  var all=teams[0].concat(teams[1]);
+  if(isMixed(teams[0])&&isMixed(teams[1])) return 'Mixed';
+  if(all.every(function(id){return gw(id)==='M';})) return "Men's";
+  if(all.every(function(id){return gw(id)==='W';})) return "Women's";
+  return 'Open';
+}
+function searchGame(pool,type){
+  var best=null,a=pool[0],r=pool.slice(1);
+  for(var i=0;i<r.length;i++)for(var j=i+1;j<r.length;j++)for(var k=j+1;k<r.length;k++){
+    var f=[a,r[i],r[j],r[k]];
+    var wait=(i+j+k-3)*3;
+    var gs=f.map(gr);
+    var range=Math.max.apply(null,gs)-Math.min.apply(null,gs);
+    for(var p=0;p<PAIRS.length;p++){
+      var tA=[f[PAIRS[p][0][0]],f[PAIRS[p][0][1]]], tB=[f[PAIRS[p][1][0]],f[PAIRS[p][1][1]]];
+      if(!valid(tA,tB,type)) continue;
+      var sa=gr(tA[0])+gr(tA[1]), sb=gr(tB[0])+gr(tB[1]);
+      var rep=(S.pairs[key(tA[0],tA[1])]||0)+(S.pairs[key(tB[0],tB[1])]||0);
+      var opp=0; tA.forEach(function(x){tB.forEach(function(y){opp+=S.opps[key(x,y)]||0;});});
+      var gm=(type==='mixed'||type==='level')?0:Math.abs(countW(tA)-countW(tB))*2;
+      var score=wait+Math.abs(sa-sb)*4+range*0.5+rep*6+opp+gm;
+      if(!best||score<best.score) best={teams:[tA,tB],score:score,sa:sa,sb:sb};
+    }
+  }
+  return best;
+}
+function pick(mode){
+  var q=queue();
+  if(q.length<4) return {err:'Four players need to be waiting to fill this court. '+q.length+' waiting now.'};
+  var pool=q.slice(0,Math.min(q.length,4+S.settings.flex));
+  var type=(mode==='mixed'||mode==='level')?mode:'open';
+  var best=searchGame(pool,type), note='';
+  var word=mode==='mixed'?'mixed':'level';
+  if(!best&&type!=='open'&&S.settings.relax){
+    best=searchGame(pool,'open');
+    if(best) note='No '+word+' game was possible from the next '+pool.length+' players, so this is an open game to keep waiting times fair.';
+  }
+  if(!best) return {err:'No '+word+' game is possible from the next '+pool.length+' players. Switch this court to Best match, or allow more queue flexibility in Settings.'};
+  best.note=note; return best;
+}
+function fill(ci){
+  var c=S.courts[ci]; if(!c||c.game) return;
+  var r=pick(c.mode);
+  if(r.err){c.note=r.err;return;}
+  var since={};
+  r.teams[0].concat(r.teams[1]).forEach(function(id){since[id]=S.present[id].since;});
+  c.game={teams:r.teams,start:now(),label:labelFor(r.teams),sa:r.sa,sb:r.sb,since:since};
+  c.note=r.note||'';
+  freshCourt=ci;
+}
+function finish(ci){
+  var c=S.courts[ci]; if(!c||!c.game) return;
+  var g=c.game,t=now();
+  g.teams[0].concat(g.teams[1]).forEach(function(id){var p=S.present[id]; if(p){p.games++;p.since=t;}});
+  g.teams.forEach(function(tm){var k=key(tm[0],tm[1]);S.pairs[k]=(S.pairs[k]||0)+1;});
+  g.teams[0].forEach(function(x){g.teams[1].forEach(function(y){var k=key(x,y);S.opps[k]=(S.opps[k]||0)+1;});});
+  S.played++;
+  c.game=null; c.note='';
+}
+function cancel(ci){var c=S.courts[ci]; if(c&&c.game){restore(c.game);c.game=null;c.note='';}}
+
+function arm(k,fn){
+  if(pending===k){pending=null;fn();return;}
+  pending=k;
+  setTimeout(function(){if(pending===k){pending=null;render();}},3500);
+}
+
+/* ---------- rendering ---------- */
+function summary(){
+  var oc=onCourt(), here=0,playing=0,rest=0;
+  Object.keys(S.present).forEach(function(id){if(!active(id))return;here++; if(oc[id])playing++; else if(S.present[id].rest)rest++;});
+  var w=queue().length;
+  if(!here) return 'Nobody checked in yet.';
+  return here+' here, '+playing+' on court, '+w+' waiting'+(rest?', '+rest+' on a break':'')+'. '+S.played+' game'+(S.played===1?'':'s')+' played tonight.';
+}
+function chip(id){var m=M(id);if(!m)return '';return '<span class="pl">'+esc(m.name)+'<small>'+m.g+m.grade+'</small></span>';}
+
+function courtCard(c,i){
+  var opts=MODES.map(function(m){return '<option value="'+m[0]+'"'+(c.mode===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('');
+  var lines='<div class="bound"><div class="ln ss-t"></div><div class="ln ss-b"></div><div class="ln ls-l"></div><div class="ln ls-r"></div><div class="ln sh-l"></div><div class="ln sh-r"></div><div class="ln c-l"></div><div class="ln c-r"></div></div><div class="net"></div>';
+  var body,meta='',acts;
+  if(c.game){
+    var g=c.game;
+    body='<div class="teams"><div class="side">'+chip(g.teams[0][0])+chip(g.teams[0][1])+'</div><div class="side">'+chip(g.teams[1][0])+chip(g.teams[1][1])+'</div></div>';
+    meta='<div class="meta"><span class="tag">'+esc(g.label)+'</span><span>Grades '+g.sa+' v '+g.sb+'</span><span>On for '+mins(g.start)+' min</span></div>';
+    acts='<button class="btn primary" data-act="finishFill" data-ci="'+i+'">Finish and refill</button>'+
+         '<button class="btn" data-act="finish" data-ci="'+i+'">Finish</button>'+
+         '<button class="btn quiet" data-act="cancel" data-ci="'+i+'">Cancel game</button>';
+  }else{
+    body='<div class="empty-court">Free</div>';
+    acts='<button class="btn primary" data-act="fill" data-ci="'+i+'">Fill court</button>';
+  }
+  return '<section class="court-card" aria-label="Court '+(i+1)+'">'+
+    '<div class="court-head"><h2>Court '+(i+1)+'</h2><label class="hide" for="mode'+i+'">Game type for court '+(i+1)+'</label>'+
+    '<select id="mode'+i+'" data-change="mode" data-ci="'+i+'">'+opts+'</select></div>'+
+    '<div class="court'+(freshCourt===i?' fresh':'')+'">'+lines+body+'</div>'+meta+
+    (c.note?'<p class="note">'+esc(c.note)+'</p>':'')+
+    '<div class="actions">'+acts+'</div></section>';
+}
+
+function viewCourts(){
+  var q=queue();
+  var empty=S.courts.filter(function(c){return !c.game;}).length;
+  var h='<div class="layout"><div>';
+  h+='<div class="bar"><button class="btn primary" data-act="fillAll"'+(empty?'':' disabled')+'>Fill empty courts</button>'+
+     '<span class="muted small">Players who have waited longest go on first. Teams are balanced on grade.</span></div>';
+  h+='<div class="courts">'+S.courts.map(courtCard).join('')+'</div></div>';
+  h+='<aside class="panel queue" aria-label="Queue"><h2>Up next</h2>';
+  if(!q.length){
+    h+='<p class="empty-state">'+(Object.keys(S.present).some(active)?'Everyone is on court or on a break.':'Check players in to start the queue.')+'</p>'+
+       (Object.keys(S.present).some(active)?'':'<button class="btn" data-act="tab" data-tab="checkin">Check players in</button>');
+  }else{
+    h+='<ol>'+q.map(function(id,n){var m=M(id),p=S.present[id];
+      return '<li class="'+(n<4?'next':'')+'"><span class="pos">'+(n+1)+'</span><span class="nm">'+esc(m.name)+' <span class="muted small">'+m.g+m.grade+'</span></span>'+
+        '<span class="st">'+mins(p.since)+' min, '+p.games+' game'+(p.games===1?'':'s')+'</span></li>';}).join('')+'</ol>';
+  }
+  h+='</aside></div>';
+  return h;
+}
+
+function checkRows(){
+  var oc=onCourt();
+  var list=S.members.slice().sort(function(a,b){
+    var ah=active(a.id)?0:1, bh=active(b.id)?0:1;
+    return (ah-bh)||a.name.localeCompare(b.name);
+  }).filter(function(m){return !search||m.name.toLowerCase().indexOf(search.toLowerCase())>-1;});
+  if(!S.members.length) return '<p class="empty-state">Add your members first. <button class="btn" data-act="tab" data-tab="members">Add members</button></p>';
+  if(!list.length) return '<p class="empty-state">No member matches that name.</p>';
+  return list.map(function(m){
+    var p=S.present[m.id], here=active(m.id), st, acts;
+    var info=(m.g==='W'?'Woman':'Man')+', grade '+m.grade;
+    if(!here){
+      st=p&&p.gone?'Left tonight after '+p.games+' game'+(p.games===1?'':'s'):'Not here';
+      acts='<button class="btn primary" data-act="checkin" data-id="'+m.id+'">Check in</button>';
+    }else if(oc[m.id]){
+      st='<span class="status-here">On court '+oc[m.id]+'</span>, '+p.games+' game'+(p.games===1?'':'s');
+      acts='<button class="btn" disabled>Break</button><button class="btn" disabled>Leave</button>';
+    }else if(p.rest){
+      st='On a break, '+p.games+' game'+(p.games===1?'':'s');
+      acts='<button class="btn primary" data-act="back" data-id="'+m.id+'">Back in the queue</button><button class="btn" data-act="leave" data-id="'+m.id+'">Leave</button>';
+    }else{
+      st='<span class="status-here">Waiting '+mins(p.since)+' min</span>, '+p.games+' game'+(p.games===1?'':'s');
+      acts='<button class="btn" data-act="rest" data-id="'+m.id+'">Break</button><button class="btn" data-act="leave" data-id="'+m.id+'">Leave</button>';
+    }
+    return '<div class="row"><div class="who"><strong>'+esc(m.name)+'</strong> <span class="muted small">'+info+'</span><br><span class="small muted">'+st+'</span></div><div class="acts">'+acts+'</div></div>';
+  }).join('');
+}
+function viewCheckin(){
+  return '<div class="panel"><h2>Who is here tonight</h2>'+
+    '<p class="muted small">Check people in as they arrive. Late arrivals join the back of the queue. A break keeps someone out of the queue until they return.</p>'+
+    '<div class="form" style="margin-top:.75rem"><label class="hide" for="find">Find a member</label><input type="text" id="find" placeholder="Find a member" value="'+esc(search)+'" autocomplete="off"></div>'+
+    '<div class="rows" id="checkrows">'+checkRows()+'</div></div>';
+}
+
+function gradeOpts(sel){var o='';for(var g=1;g<=5;g++)o+='<option value="'+g+'"'+(g===sel?' selected':'')+'>Grade '+g+'</option>';return o;}
+function viewMembers(){
+  var list=S.members.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
+  var h='<div class="grid2"><div class="panel"><h2>Add a member</h2>'+
+    '<div class="form"><label class="hide" for="nName">Name</label><input type="text" id="nName" placeholder="Name" autocomplete="off">'+
+    '<label class="hide" for="nG">Man or woman</label><select id="nG"><option value="M">Man</option><option value="W">Woman</option></select>'+
+    '<label class="hide" for="nGr">Grade</label><select id="nGr">'+gradeOpts(3)+'</select>'+
+    '<button class="btn primary" data-act="add">Add member</button></div>'+
+    '<h3>Add several at once</h3><p class="muted small">One person per line: name, M or W, grade. For example: Sam Jones, W, 3</p>'+
+    '<label class="hide" for="bulk">Members to add</label><textarea id="bulk" placeholder="Sam Jones, W, 3&#10;Chris Hall, M, 4"></textarea>'+
+    '<div class="actions" style="margin-top:.5rem"><button class="btn" data-act="bulk">Add these members</button><span class="muted small" id="bulkMsg"></span></div></div>'+
+    '<div class="panel"><h2>Grading guide</h2><p class="muted small">Grade everyone on this one scale by how they actually play. Gender plays no part in the grade.</p><ul class="guide">'+
+    '<li><b>1</b><span>New or returning. Still learning the basic shots.</span></li>'+
+    '<li><b>2</b><span>Keeps a rally going. Knows where to stand in doubles.</span></li>'+
+    '<li><b>3</b><span>Solid club player. Reliable serve and clears.</span></li>'+
+    '<li><b>4</b><span>Strong club player. Attacks and defends with control.</span></li>'+
+    '<li><b>5</b><span>League or county standard.</span></li></ul></div></div>';
+  h+='<div class="panel" style="margin-top:1.25rem"><h2>Members ('+list.length+')</h2>';
+  if(!list.length) h+='<p class="empty-state">No members yet. Add your first above.</p>';
+  h+='<div class="rows">'+list.map(function(m){
+    var k='del'+m.id, armed=pending===k;
+    return '<div class="row"><div class="who"><strong>'+esc(m.name)+'</strong></div><div class="acts">'+
+      '<label class="hide" for="g'+m.id+'">Man or woman</label><select id="g'+m.id+'" data-change="gender" data-id="'+m.id+'"><option value="M"'+(m.g==='M'?' selected':'')+'>Man</option><option value="W"'+(m.g==='W'?' selected':'')+'>Woman</option></select>'+
+      '<label class="hide" for="r'+m.id+'">Grade</label><select id="r'+m.id+'" data-change="grade" data-id="'+m.id+'">'+gradeOpts(m.grade)+'</select>'+
+      '<button class="btn warn'+(armed?' armed':'')+'" data-act="del" data-id="'+m.id+'">'+(armed?'Tap again to remove':'Remove')+'</button></div></div>';
+  }).join('')+'</div></div>';
+  return h;
+}
+
+function viewSettings(){
+  var co='',fo='';
+  for(var n=1;n<=8;n++) co+='<option value="'+n+'"'+(n===S.settings.courts?' selected':'')+'>'+n+'</option>';
+  for(var f=0;f<=6;f++) fo+='<option value="'+f+'"'+(f===S.settings.flex?' selected':'')+'>'+(f===0?'None, strict order':f+' place'+(f===1?'':'s'))+'</option>';
+  var armed=pending==='end';
+  var exp=S.members.map(function(m){return m.name+', '+m.g+', '+m.grade;}).join('\n');
+  return '<div class="panel"><h2>Settings</h2>'+
+    '<div class="field"><label for="sCourts">Courts in use</label><select id="sCourts" data-change="courts">'+co+'</select></div>'+
+    '<div class="field"><label for="sFlex">Queue flexibility</label><select id="sFlex" data-change="flex">'+fo+'</select>'+
+    '<p>How far down the queue the app may look to build a better balanced game. The person who has waited longest always plays. More flexibility gives better matches. Less keeps the order stricter.</p></div>'+
+    '<div class="field"><label for="sRelax">Uneven nights</label><input type="checkbox" id="sRelax" data-change="relax"'+(S.settings.relax?' checked':'')+'> <span>Switch a mixed or level court to an open game when the queue cannot make one</span>'+
+    '<p>Leave this on. Without it, a short supply of women or men would stall a court or push some players on far more often than others.</p></div>'+
+    '<div class="field"><label>End the session</label><button class="btn warn'+(armed?' armed':'')+'" data-act="end">'+(armed?'Tap again to end the session':'End session')+'</button>'+
+    '<p>Clears tonight\'s check-ins, games and partner history. Your member list stays.</p></div></div>'+
+    '<div class="panel" style="margin-top:1.25rem"><h2>Back up your member list</h2><p class="muted small">Copy this text and keep it somewhere safe. Paste it into "Add several at once" on another device to move your members across. This app saves on this device only.</p>'+
+    '<label class="hide" for="exp">Member list</label><textarea id="exp" readonly style="margin-top:.6rem">'+esc(exp)+'</textarea></div>';
+}
+
+function render(){
+  ensureCourts();
+  document.getElementById('summary').textContent=summary();
+  document.querySelectorAll('nav.tabs button').forEach(function(b){b.setAttribute('aria-selected',b.dataset.tab===tab?'true':'false');});
+  var app=document.getElementById('app');
+  app.innerHTML=tab==='courts'?viewCourts():tab==='checkin'?viewCheckin():tab==='members'?viewMembers():viewSettings();
+  freshCourt=-1;
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click',function(e){
+  var b=e.target.closest('[data-act]'); if(!b||b.disabled) return;
+  var a=b.dataset.act, id=b.dataset.id, ci=+b.dataset.ci;
+  switch(a){
+    case 'tab': tab=b.dataset.tab; pending=null; render(); window.scrollTo(0,0); return;
+    case 'fill': fill(ci); break;
+    case 'fillAll': S.courts.forEach(function(c,i){if(!c.game) fill(i);}); break;
+    case 'finish': finish(ci); break;
+    case 'finishFill': finish(ci); fill(ci); break;
+    case 'cancel': cancel(ci); break;
+    case 'checkin':
+      var p=S.present[id];
+      if(p&&p.gone){p.gone=false;p.rest=false;p.since=now();}
+      else S.present[id]={since:now(),games:0,rest:false,order:S.seq++};
+      break;
+    case 'rest': if(S.present[id]) S.present[id].rest=true; break;
+    case 'back': if(S.present[id]){S.present[id].rest=false;S.present[id].since=now();} break;
+    case 'leave': if(S.present[id]){S.present[id].gone=true;S.present[id].rest=false;} break;
+    case 'add':
+      var nm=document.getElementById('nName').value.trim();
+      if(!nm){document.getElementById('nName').focus();return;}
+      S.members.push({id:uid(),name:nm,g:document.getElementById('nG').value,grade:+document.getElementById('nGr').value});
+      save(); render(); document.getElementById('nName').focus(); return;
+    case 'bulk':
+      var added=0,skipped=0;
+      document.getElementById('bulk').value.split(/\n/).forEach(function(line){
+        var parts=line.split(','); var n=(parts[0]||'').trim(); if(!n) return;
+        if(S.members.some(function(m){return m.name.toLowerCase()===n.toLowerCase();})){skipped++;return;}
+        var gg=(parts[1]||'').trim().toUpperCase(); var g=(gg[0]==='W'||gg[0]==='F')?'W':'M';
+        var gradeV=parseInt(parts[2],10); if(!(gradeV>=1&&gradeV<=5)) gradeV=3;
+        S.members.push({id:uid(),name:n,g:g,grade:gradeV}); added++;
+      });
+      save(); render();
+      document.getElementById('bulkMsg').textContent='Added '+added+' member'+(added===1?'':'s')+(skipped?'. Skipped '+skipped+' already on the list.':'.');
+      return;
+    case 'del':
+      arm('del'+id,function(){
+        var oc=onCourt(); if(oc[id]) cancel(oc[id]-1);
+        S.members=S.members.filter(function(m){return m.id!==id;}); delete S.present[id];
+      });
+      break;
+    case 'end':
+      arm('end',function(){
+        S.courts.forEach(function(c){c.game=null;c.note='';});
+        S.present={}; S.pairs={}; S.opps={}; S.played=0;
+      });
+      break;
+  }
+  save(); render();
+});
+document.addEventListener('change',function(e){
+  var t=e.target, c=t.dataset.change; if(!c) return;
+  if(c==='mode'){var ct=S.courts[+t.dataset.ci]; ct.mode=t.value; ct.note='';}
+  else if(c==='gender'){var m=M(t.dataset.id); if(m) m.g=t.value;}
+  else if(c==='grade'){var m2=M(t.dataset.id); if(m2) m2.grade=+t.value;}
+  else if(c==='courts'){S.settings.courts=+t.value;}
+  else if(c==='flex'){S.settings.flex=+t.value;}
+  else if(c==='relax'){S.settings.relax=t.checked;}
+  save(); render();
+});
+document.addEventListener('input',function(e){
+  if(e.target.id==='find'){search=e.target.value;document.getElementById('checkrows').innerHTML=checkRows();}
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&e.target.id==='nName'){var b=document.querySelector('[data-act="add"]'); if(b) b.click();}
+});
+setInterval(function(){
+  var ae=document.activeElement, tn=ae&&ae.tagName;
+  if(tn==='INPUT'||tn==='TEXTAREA'||tn==='SELECT') return;
+  if(tab==='courts'||tab==='checkin') render();
+},20000);
+
+render();
+})();
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
+</script>
+</body>
+</html>
