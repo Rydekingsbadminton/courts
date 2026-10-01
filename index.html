@@ -49,6 +49,7 @@ header.top h1{font-size:2rem;letter-spacing:.01em}
 nav.tabs{display:flex;gap:.25rem;margin-left:auto;flex-wrap:wrap}
 nav.tabs button{background:transparent;color:var(--line);border:0;padding:.55rem 1rem;border-radius:999px;font:600 1rem Barlow,sans-serif;cursor:pointer}
 nav.tabs button:hover{background:rgba(255,255,255,.08)}
+nav.tabs .lockbtn{border:1px solid var(--shuttle);color:var(--shuttle)}
 nav.tabs button[aria-selected="true"]{background:var(--shuttle);color:var(--shuttle-ink)}
 
 main{padding:1.25rem clamp(1rem,3vw,2rem) 3rem;max-width:1400px;margin:0 auto}
@@ -65,7 +66,7 @@ main{padding:1.25rem clamp(1rem,3vw,2rem) 3rem;max-width:1400px;margin:0 auto}
 .btn.quiet:hover{color:var(--ink)}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
 
-select,input[type=text],textarea{font:500 1rem Barlow,sans-serif;color:var(--ink);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .6rem;min-height:44px}
+select,input[type=text],input[type=password],textarea{font:500 1rem Barlow,sans-serif;color:var(--ink);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .6rem;min-height:44px}
 textarea{width:100%;min-height:7rem;resize:vertical}
 
 .layout{display:grid;gap:1.5rem;grid-template-columns:1fr}
@@ -139,6 +140,9 @@ textarea{width:100%;min-height:7rem;resize:vertical}
 .field p{flex-basis:100%;font-size:.93rem;color:var(--muted)}
 .empty-state{padding:1.5rem 0;color:var(--muted)}
 .hide{display:none}
+.lockpanel{max-width:30rem;margin:2rem auto}
+.lockpanel .form input{flex:1 1 9rem;letter-spacing:.2em}
+.err{color:var(--danger);font-weight:600;min-height:1.5em;margin-top:.5rem}
 </style>
 </head>
 <body>
@@ -150,8 +154,9 @@ textarea{width:100%;min-height:7rem;resize:vertical}
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button role="tab" data-act="tab" data-tab="courts">Courts</button>
     <button role="tab" data-act="tab" data-tab="checkin">Check in</button>
-    <button role="tab" data-act="tab" data-tab="members">Members</button>
-    <button role="tab" data-act="tab" data-tab="settings">Settings</button>
+    <button role="tab" data-act="tab" data-tab="members">Members<svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" style="margin-left:.35rem;vertical-align:-1px"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+    <button role="tab" data-act="tab" data-tab="settings">Settings<svg aria-hidden="true" width="13" height="13" viewBox="0 0 16 16" style="margin-left:.35rem;vertical-align:-1px"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+    <button id="lockBtn" class="lockbtn hide" data-act="lock">Lock</button>
   </nav>
 </header>
 <main id="app"></main>
@@ -162,7 +167,7 @@ var KEY='courtRotation.v1';
 var PAIRS=[[[0,1],[2,3]],[[0,2],[1,3]],[[0,3],[1,2]]];
 var MODES=[['any','Best match'],['mixed','Mixed doubles'],['level','Level doubles'],['open','Open']];
 
-function def(){return {members:[],present:{},courts:[],pairs:{},opps:{},played:0,seq:0,settings:{courts:4,flex:3,relax:true}};}
+function def(){return {members:[],present:{},courts:[],pairs:{},opps:{},played:0,seq:0,settings:{courts:4,flex:3,relax:true,pin:''}};}
 var S=null;
 try{S=JSON.parse(localStorage.getItem(KEY));}catch(e){S=null;}
 if(!S||!Array.isArray(S.members)) S=def();
@@ -170,7 +175,9 @@ var D=def();
 Object.keys(D).forEach(function(k){if(S[k]===undefined) S[k]=D[k];});
 Object.keys(D.settings).forEach(function(k){if(S.settings[k]===undefined) S.settings[k]=D.settings[k];});
 
-var tab='courts', search='', pending=null, freshCourt=-1;
+var tab='courts', search='', pending=null, freshCourt=-1, unlocked=false, pinMsg='';
+function hashPin(p){var h=5381,t='courts-rotation:'+p;for(var i=0;i<t.length;i++){h=((h<<5)+h+t.charCodeAt(i))>>>0;}return 'h'+h.toString(36);}
+function locked(){return !unlocked;}
 
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 function now(){return Date.now();}
@@ -287,7 +294,7 @@ function summary(){
   if(!here) return 'Nobody checked in yet.';
   return here+' here, '+playing+' on court, '+w+' waiting'+(rest?', '+rest+' on a break':'')+'. '+S.played+' game'+(S.played===1?'':'s')+' played tonight.';
 }
-function chip(id){var m=M(id);if(!m)return '';return '<span class="pl">'+esc(m.name)+'<small>'+m.g+m.grade+'</small></span>';}
+function chip(id){var m=M(id);if(!m)return '';return '<span class="pl">'+esc(m.name)+(unlocked?'<small>'+m.g+m.grade+'</small>':'')+'</span>';}
 
 function courtCard(c,i){
   var opts=MODES.map(function(m){return '<option value="'+m[0]+'"'+(c.mode===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('');
@@ -296,7 +303,7 @@ function courtCard(c,i){
   if(c.game){
     var g=c.game;
     body='<div class="teams"><div class="side">'+chip(g.teams[0][0])+chip(g.teams[0][1])+'</div><div class="side">'+chip(g.teams[1][0])+chip(g.teams[1][1])+'</div></div>';
-    meta='<div class="meta"><span class="tag">'+esc(g.label)+'</span><span>Grades '+g.sa+' v '+g.sb+'</span><span>On for '+mins(g.start)+' min</span></div>';
+    meta='<div class="meta"><span class="tag">'+esc(g.label)+'</span>'+(unlocked?'<span>Grades '+g.sa+' v '+g.sb+'</span>':'')+'<span>On for '+mins(g.start)+' min</span></div>';
     acts='<button class="btn primary" data-act="finishFill" data-ci="'+i+'">Finish and refill</button>'+
          '<button class="btn" data-act="finish" data-ci="'+i+'">Finish</button>'+
          '<button class="btn quiet" data-act="cancel" data-ci="'+i+'">Cancel game</button>';
@@ -317,7 +324,7 @@ function viewCourts(){
   var empty=S.courts.filter(function(c){return !c.game;}).length;
   var h='<div class="layout"><div>';
   h+='<div class="bar"><button class="btn primary" data-act="fillAll"'+(empty?'':' disabled')+'>Fill empty courts</button>'+
-     '<span class="muted small">Players who have waited longest go on first. Teams are balanced on grade.</span></div>';
+     '<span class="muted small">Players who have waited longest go on first. Teams are balanced by playing level.</span></div>';
   h+='<div class="courts">'+S.courts.map(courtCard).join('')+'</div></div>';
   h+='<aside class="panel queue" aria-label="Queue"><h2>Up next</h2>';
   if(!q.length){
@@ -325,7 +332,7 @@ function viewCourts(){
        (Object.keys(S.present).some(active)?'':'<button class="btn" data-act="tab" data-tab="checkin">Check players in</button>');
   }else{
     h+='<ol>'+q.map(function(id,n){var m=M(id),p=S.present[id];
-      return '<li class="'+(n<4?'next':'')+'"><span class="pos">'+(n+1)+'</span><span class="nm">'+esc(m.name)+' <span class="muted small">'+m.g+m.grade+'</span></span>'+
+      return '<li class="'+(n<4?'next':'')+'"><span class="pos">'+(n+1)+'</span><span class="nm">'+esc(m.name)+(unlocked?' <span class="muted small">'+m.g+m.grade+'</span>':'')+'</span>'+
         '<span class="st">'+mins(p.since)+' min, '+p.games+' game'+(p.games===1?'':'s')+'</span></li>';}).join('')+'</ol>';
   }
   h+='</aside></div>';
@@ -342,7 +349,7 @@ function checkRows(){
   if(!list.length) return '<p class="empty-state">No member matches that name.</p>';
   return list.map(function(m){
     var p=S.present[m.id], here=active(m.id), st, acts;
-    var info=(m.g==='W'?'Woman':'Man')+', grade '+m.grade;
+    var info=(m.g==='W'?'Woman':'Man')+(unlocked?', grade '+m.grade:'');
     if(!here){
       st=p&&p.gone?'Left tonight after '+p.games+' game'+(p.games===1?'':'s'):'Not here';
       acts='<button class="btn primary" data-act="checkin" data-id="'+m.id+'">Check in</button>';
@@ -407,18 +414,38 @@ function viewSettings(){
     '<p>How far down the queue the app may look to build a better balanced game. The person who has waited longest always plays. More flexibility gives better matches. Less keeps the order stricter.</p></div>'+
     '<div class="field"><label for="sRelax">Uneven nights</label><input type="checkbox" id="sRelax" data-change="relax"'+(S.settings.relax?' checked':'')+'> <span>Switch a mixed or level court to an open game when the queue cannot make one</span>'+
     '<p>Leave this on. Without it, a short supply of women or men would stall a court or push some players on far more often than others.</p></div>'+
+    '<div class="field"><label for="cp1">Organiser PIN</label><input type="password" inputmode="numeric" id="cp1" placeholder="New PIN" autocomplete="off"><input type="password" inputmode="numeric" id="cp2" placeholder="Repeat PIN" autocomplete="off"><button class="btn" data-act="changepin">Change PIN</button><p>The app locks again when you tap Lock, close it or switch to another app. <span id="cpMsg"></span></p></div>'+
     '<div class="field"><label>End the session</label><button class="btn warn'+(armed?' armed':'')+'" data-act="end">'+(armed?'Tap again to end the session':'End session')+'</button>'+
     '<p>Clears tonight\'s check-ins, games and partner history. Your member list stays.</p></div></div>'+
     '<div class="panel" style="margin-top:1.25rem"><h2>Back up your member list</h2><p class="muted small">Copy this text and keep it somewhere safe. Paste it into "Add several at once" on another device to move your members across. This app saves on this device only.</p>'+
     '<label class="hide" for="exp">Member list</label><textarea id="exp" readonly style="margin-top:.6rem">'+esc(exp)+'</textarea></div>';
 }
 
+function viewLock(){
+  var h='<div class="panel lockpanel">';
+  if(!S.settings.pin){
+    h+='<h2>Set an organiser PIN</h2><p class="muted small">Grades and settings sit behind this PIN. Players only ever see names on the courts and in the queue. Choose 4 to 8 digits and share it only with the people who run club nights.</p>'+
+      '<div class="form" style="margin-top:.9rem"><label class="hide" for="pin1">New PIN</label><input type="password" inputmode="numeric" id="pin1" placeholder="New PIN" autocomplete="off">'+
+      '<label class="hide" for="pin2">Repeat PIN</label><input type="password" inputmode="numeric" id="pin2" placeholder="Repeat PIN" autocomplete="off">'+
+      '<button class="btn primary" data-act="setpin">Save PIN</button></div>';
+  }else{
+    var armed=pending==='forgot';
+    h+='<h2>Organiser area</h2><p class="muted small">Enter the organiser PIN to see grades, manage members and change settings.</p>'+
+      '<div class="form" style="margin-top:.9rem"><label class="hide" for="pinIn">PIN</label><input type="password" inputmode="numeric" id="pinIn" placeholder="PIN" autocomplete="off">'+
+      '<button class="btn primary" data-act="unlock">Unlock</button></div>'+
+      '<div class="actions" style="margin-top:1rem"><button class="btn warn'+(armed?' armed':'')+'" data-act="forgot">'+(armed?'Tap again: remove PIN and reset every grade to 3':'Forgotten PIN')+'</button></div>'+
+      '<p class="muted small" style="margin-top:.5rem">Forgotten PIN keeps your members but resets all grades, so nobody can use it to see them.</p>';
+  }
+  return h+'<p class="err" role="alert">'+esc(pinMsg)+'</p></div>';
+}
 function render(){
   ensureCourts();
   document.getElementById('summary').textContent=summary();
   document.querySelectorAll('nav.tabs button').forEach(function(b){b.setAttribute('aria-selected',b.dataset.tab===tab?'true':'false');});
   var app=document.getElementById('app');
-  app.innerHTML=tab==='courts'?viewCourts():tab==='checkin'?viewCheckin():tab==='members'?viewMembers():viewSettings();
+  document.getElementById('lockBtn').classList.toggle('hide',!unlocked);
+  app.innerHTML=tab==='courts'?viewCourts():tab==='checkin'?viewCheckin():locked()?viewLock():tab==='members'?viewMembers():viewSettings();
+  var pf=document.getElementById(S.settings.pin?'pinIn':'pin1'); if(pf&&locked()&&(tab==='members'||tab==='settings')) pf.focus();
   freshCourt=-1;
 }
 
@@ -427,7 +454,25 @@ document.addEventListener('click',function(e){
   var b=e.target.closest('[data-act]'); if(!b||b.disabled) return;
   var a=b.dataset.act, id=b.dataset.id, ci=+b.dataset.ci;
   switch(a){
-    case 'tab': tab=b.dataset.tab; pending=null; render(); window.scrollTo(0,0); return;
+    case 'tab': tab=b.dataset.tab; pending=null; pinMsg=''; render(); window.scrollTo(0,0); return;
+    case 'setpin':
+      var a1=document.getElementById('pin1').value.trim(), a2=document.getElementById('pin2').value.trim();
+      if(!/^\d{4,8}$/.test(a1)){pinMsg='Use 4 to 8 digits.';render();return;}
+      if(a1!==a2){pinMsg='The two PINs do not match.';render();return;}
+      S.settings.pin=hashPin(a1); unlocked=true; pinMsg=''; save(); render(); return;
+    case 'unlock':
+      var v=document.getElementById('pinIn').value.trim();
+      if(hashPin(v)===S.settings.pin){unlocked=true;pinMsg='';}else{pinMsg='That PIN is not right.';}
+      render(); return;
+    case 'lock': unlocked=false; pinMsg=''; if(tab==='members'||tab==='settings') tab='courts'; render(); return;
+    case 'changepin':
+      var c1=document.getElementById('cp1').value.trim(), c2=document.getElementById('cp2').value.trim(), cm=document.getElementById('cpMsg');
+      if(!/^\d{4,8}$/.test(c1)){cm.textContent='Use 4 to 8 digits.';return;}
+      if(c1!==c2){cm.textContent='The two PINs do not match.';return;}
+      S.settings.pin=hashPin(c1); save(); document.getElementById('cp1').value=''; document.getElementById('cp2').value=''; cm.textContent='PIN changed.'; return;
+    case 'forgot':
+      arm('forgot',function(){S.settings.pin=''; S.members.forEach(function(m){m.grade=3;}); pinMsg='';});
+      break;
     case 'fill': fill(ci); break;
     case 'fillAll': S.courts.forEach(function(c,i){if(!c.game) fill(i);}); break;
     case 'finish': finish(ci); break;
@@ -488,6 +533,7 @@ document.addEventListener('input',function(e){
 });
 document.addEventListener('keydown',function(e){
   if(e.key==='Enter'&&e.target.id==='nName'){var b=document.querySelector('[data-act="add"]'); if(b) b.click();}
+  if(e.key==='Enter'&&(e.target.id==='pinIn'||e.target.id==='pin2')){var u=document.querySelector('[data-act="unlock"],[data-act="setpin"]'); if(u) u.click();}
 });
 setInterval(function(){
   var ae=document.activeElement, tn=ae&&ae.tagName;
@@ -495,6 +541,7 @@ setInterval(function(){
   if(tab==='courts'||tab==='checkin') render();
 },20000);
 
+document.addEventListener('visibilitychange',function(){if(document.hidden&&unlocked){unlocked=false;if(tab==='members'||tab==='settings')tab='courts';render();}});
 render();
 })();
 if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
