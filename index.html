@@ -77,7 +77,9 @@ textarea{width:100%;min-height:7rem;resize:vertical}
 .court-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1rem;display:flex;flex-direction:column;gap:.75rem}
 .court-head{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
 .court-head h2{font-size:1.6rem;margin-right:auto}
-.court-head select{min-height:38px;padding:.3rem .5rem}
+.seg{display:flex;flex-wrap:wrap;gap:.4rem}
+.seg button{min-height:42px;padding:.35rem .95rem;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--ink);font:600 1rem Barlow,sans-serif;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--floor);border-color:var(--floor);color:#fff}
 
 .court{position:relative;aspect-ratio:13.4/6.1;background:var(--floor);border-radius:6px;overflow:hidden}
 .bound{position:absolute;inset:8px;border:2px solid var(--line)}
@@ -165,9 +167,10 @@ textarea{width:100%;min-height:7rem;resize:vertical}
 (function(){
 var KEY='courtRotation.v1';
 var PAIRS=[[[0,1],[2,3]],[[0,2],[1,3]],[[0,3],[1,2]]];
-var MODES=[['any','Best match'],['mixed','Mixed doubles'],['level','Level doubles'],['open','Open']];
+var MODES=[['any','Any'],['mixed','Mixed'],['men',"Men's"],['women',"Ladies'"]];
+var WORDS={mixed:'mixed',men:"men's",women:"ladies'"};
 
-function def(){return {members:[],present:{},courts:[],pairs:{},opps:{},played:0,seq:0,settings:{courts:4,flex:3,relax:true,pin:''}};}
+function def(){return {members:[],present:{},courts:[],pairs:{},opps:{},played:0,seq:0,settings:{courts:4,flex:6,relax:true,pin:''}};}
 var S=null;
 try{S=JSON.parse(localStorage.getItem(KEY));}catch(e){S=null;}
 if(!S||!Array.isArray(S.members)) S=def();
@@ -190,6 +193,7 @@ function gw(id){var m=M(id);return m?m.g:'M';}
 function gr(id){var m=M(id);return m?m.grade:3;}
 
 function ensureCourts(){
+  S.courts.forEach(function(c){if(!WORDS[c.mode]&&c.mode!=='any') c.mode='any'; if(!c.rejects) c.rejects=[];});
   var n=S.settings.courts;
   while(S.courts.length<n) S.courts.push({mode:'any',game:null,note:''});
   while(S.courts.length>n){var c=S.courts.pop(); if(c.game) restore(c.game);}
@@ -215,57 +219,62 @@ function isMixed(t){return gw(t[0])!==gw(t[1]);}
 function countW(t){return (gw(t[0])==='W'?1:0)+(gw(t[1])==='W'?1:0);}
 function valid(tA,tB,type){
   if(type==='mixed') return isMixed(tA)&&isMixed(tB);
-  if(type==='level'){var g=gw(tA[0]);return gw(tA[1])===g&&gw(tB[0])===g&&gw(tB[1])===g;}
+  if(type==='men'||type==='women'){var g=type==='men'?'M':'W';return gw(tA[0])===g&&gw(tA[1])===g&&gw(tB[0])===g&&gw(tB[1])===g;}
   return true;
 }
 function labelFor(teams){
   var all=teams[0].concat(teams[1]);
   if(isMixed(teams[0])&&isMixed(teams[1])) return 'Mixed';
   if(all.every(function(id){return gw(id)==='M';})) return "Men's";
-  if(all.every(function(id){return gw(id)==='W';})) return "Women's";
-  return 'Open';
+  if(all.every(function(id){return gw(id)==='W';})) return "Ladies'";
+  return 'Any';
 }
-function searchGame(pool,type){
+function sig(tA,tB){return [key(tA[0],tA[1]),key(tB[0],tB[1])].sort().join('/');}
+function searchGame(pool,type,excl){
+  excl=excl||[];
   var best=null,a=pool[0],r=pool.slice(1);
   for(var i=0;i<r.length;i++)for(var j=i+1;j<r.length;j++)for(var k=j+1;k<r.length;k++){
     var f=[a,r[i],r[j],r[k]];
-    var wait=(i+j+k-3)*3;
+    var wait=(i+j+k-3)*2;
     var gs=f.map(gr);
     var range=Math.max.apply(null,gs)-Math.min.apply(null,gs);
     for(var p=0;p<PAIRS.length;p++){
       var tA=[f[PAIRS[p][0][0]],f[PAIRS[p][0][1]]], tB=[f[PAIRS[p][1][0]],f[PAIRS[p][1][1]]];
       if(!valid(tA,tB,type)) continue;
+      if(excl.indexOf(sig(tA,tB))>-1) continue;
       var sa=gr(tA[0])+gr(tA[1]), sb=gr(tB[0])+gr(tB[1]);
       var rep=(S.pairs[key(tA[0],tA[1])]||0)+(S.pairs[key(tB[0],tB[1])]||0);
       var opp=0; tA.forEach(function(x){tB.forEach(function(y){opp+=S.opps[key(x,y)]||0;});});
-      var gm=(type==='mixed'||type==='level')?0:Math.abs(countW(tA)-countW(tB))*2;
-      var score=wait+Math.abs(sa-sb)*4+range*0.5+rep*6+opp+gm;
+      var gm=(type==='any')?Math.abs(countW(tA)-countW(tB))*3:0;
+      var gapA=Math.abs(gr(tA[0])-gr(tA[1])), gapB=Math.abs(gr(tB[0])-gr(tB[1]));
+      var score=wait+Math.abs(sa-sb)*6+range*4+(gapA+gapB)+rep*6+opp+gm;
       if(!best||score<best.score) best={teams:[tA,tB],score:score,sa:sa,sb:sb};
     }
   }
   return best;
 }
-function pick(mode){
+function pick(mode,excl){
   var q=queue();
   if(q.length<4) return {err:'Four players need to be waiting to fill this court. '+q.length+' waiting now.'};
   var pool=q.slice(0,Math.min(q.length,4+S.settings.flex));
-  var type=(mode==='mixed'||mode==='level')?mode:'open';
-  var best=searchGame(pool,type), note='';
-  var word=mode==='mixed'?'mixed':'level';
-  if(!best&&type!=='open'&&S.settings.relax){
-    best=searchGame(pool,'open');
-    if(best) note='No '+word+' game was possible from the next '+pool.length+' players, so this is an open game to keep waiting times fair.';
+  var type=WORDS[mode]?mode:'any';
+  var best=searchGame(pool,type,excl), note='';
+  var word=WORDS[type];
+  if(!best&&type!=='any'&&S.settings.relax){
+    best=searchGame(pool,'any',excl);
+    if(best) note='No '+word+' game was possible from the next '+pool.length+' players, so this game is set to Any to keep waiting times fair.';
   }
-  if(!best) return {err:'No '+word+' game is possible from the next '+pool.length+' players. Switch this court to Best match, or allow more queue flexibility in Settings.'};
+  if(!best&&excl&&excl.length) return {err:'No other game is possible from the next '+pool.length+' players.'};
+  if(!best) return {err:'No '+word+' game is possible from the next '+pool.length+' players. Switch this court to Any, or raise queue flexibility in Settings.'};
   best.note=note; return best;
 }
 function fill(ci){
   var c=S.courts[ci]; if(!c||c.game) return;
-  var r=pick(c.mode);
+  var r=pick(c.mode,c.rejects);
   if(r.err){c.note=r.err;return;}
   var since={};
   r.teams[0].concat(r.teams[1]).forEach(function(id){since[id]=S.present[id].since;});
-  c.game={teams:r.teams,start:now(),label:labelFor(r.teams),sa:r.sa,sb:r.sb,since:since};
+  c.game={teams:r.teams,start:now(),label:labelFor(r.teams),sa:r.sa,sb:r.sb,since:since,sig:sig(r.teams[0],r.teams[1])};
   c.note=r.note||'';
   freshCourt=ci;
 }
@@ -276,9 +285,10 @@ function finish(ci){
   g.teams.forEach(function(tm){var k=key(tm[0],tm[1]);S.pairs[k]=(S.pairs[k]||0)+1;});
   g.teams[0].forEach(function(x){g.teams[1].forEach(function(y){var k=key(x,y);S.opps[k]=(S.opps[k]||0)+1;});});
   S.played++;
-  c.game=null; c.note='';
+  c.game=null; c.note=''; c.rejects=[];
 }
-function cancel(ci){var c=S.courts[ci]; if(c&&c.game){restore(c.game);c.game=null;c.note='';}}
+function cancel(ci){var c=S.courts[ci]; if(c&&c.game){restore(c.game);c.game=null;c.note='';c.rejects=[];}}
+function another(ci){var c=S.courts[ci]; if(!c||!c.game) return; var rj=(c.rejects||[]).concat([c.game.sig]); var old=c.game; restore(old); c.game=null; c.rejects=rj; fill(ci); if(!c.game){var n=c.note; restore(old); c.game=old; c.note=n; c.rejects=rj;}}
 
 function arm(k,fn){
   if(pending===k){pending=null;fn();return;}
@@ -294,26 +304,26 @@ function summary(){
   if(!here) return 'Nobody checked in yet.';
   return here+' here, '+playing+' on court, '+w+' waiting'+(rest?', '+rest+' on a break':'')+'. '+S.played+' game'+(S.played===1?'':'s')+' played tonight.';
 }
-function chip(id){var m=M(id);if(!m)return '';return '<span class="pl">'+esc(m.name)+(unlocked?'<small>'+m.g+m.grade+'</small>':'')+'</span>';}
+function chip(id){var m=M(id);if(!m)return '';return '<span class="pl">'+esc(m.name)+''+'</span>';}
 
 function courtCard(c,i){
-  var opts=MODES.map(function(m){return '<option value="'+m[0]+'"'+(c.mode===m[0]?' selected':'')+'>'+m[1]+'</option>';}).join('');
+  var seg='<div class="seg" role="group" aria-label="Game type for court '+(i+1)+'">'+MODES.map(function(m){return '<button data-act="setmode" data-mode="'+m[0]+'" data-ci="'+i+'" aria-pressed="'+(c.mode===m[0])+'">'+m[1]+'</button>';}).join('')+'</div>';
   var lines='<div class="bound"><div class="ln ss-t"></div><div class="ln ss-b"></div><div class="ln ls-l"></div><div class="ln ls-r"></div><div class="ln sh-l"></div><div class="ln sh-r"></div><div class="ln c-l"></div><div class="ln c-r"></div></div><div class="net"></div>';
   var body,meta='',acts;
   if(c.game){
     var g=c.game;
     body='<div class="teams"><div class="side">'+chip(g.teams[0][0])+chip(g.teams[0][1])+'</div><div class="side">'+chip(g.teams[1][0])+chip(g.teams[1][1])+'</div></div>';
-    meta='<div class="meta"><span class="tag">'+esc(g.label)+'</span>'+(unlocked?'<span>Grades '+g.sa+' v '+g.sb+'</span>':'')+'<span>On for '+mins(g.start)+' min</span></div>';
+    meta='<div class="meta"><span class="tag">'+esc(g.label)+'</span>'+''+'<span>On for '+mins(g.start)+' min</span></div>';
     acts='<button class="btn primary" data-act="finishFill" data-ci="'+i+'">Finish and refill</button>'+
          '<button class="btn" data-act="finish" data-ci="'+i+'">Finish</button>'+
+         '<button class="btn" data-act="another" data-ci="'+i+'">Try another game</button>'+
          '<button class="btn quiet" data-act="cancel" data-ci="'+i+'">Cancel game</button>';
   }else{
     body='<div class="empty-court">Free</div>';
     acts='<button class="btn primary" data-act="fill" data-ci="'+i+'">Fill court</button>';
   }
   return '<section class="court-card" aria-label="Court '+(i+1)+'">'+
-    '<div class="court-head"><h2>Court '+(i+1)+'</h2><label class="hide" for="mode'+i+'">Game type for court '+(i+1)+'</label>'+
-    '<select id="mode'+i+'" data-change="mode" data-ci="'+i+'">'+opts+'</select></div>'+
+    '<div class="court-head"><h2>Court '+(i+1)+'</h2></div>'+seg+
     '<div class="court'+(freshCourt===i?' fresh':'')+'">'+lines+body+'</div>'+meta+
     (c.note?'<p class="note">'+esc(c.note)+'</p>':'')+
     '<div class="actions">'+acts+'</div></section>';
@@ -332,7 +342,7 @@ function viewCourts(){
        (Object.keys(S.present).some(active)?'':'<button class="btn" data-act="tab" data-tab="checkin">Check players in</button>');
   }else{
     h+='<ol>'+q.map(function(id,n){var m=M(id),p=S.present[id];
-      return '<li class="'+(n<4?'next':'')+'"><span class="pos">'+(n+1)+'</span><span class="nm">'+esc(m.name)+(unlocked?' <span class="muted small">'+m.g+m.grade+'</span>':'')+'</span>'+
+      return '<li class="'+(n<4?'next':'')+'"><span class="pos">'+(n+1)+'</span><span class="nm">'+esc(m.name)+''+'</span>'+
         '<span class="st">'+mins(p.since)+' min, '+p.games+' game'+(p.games===1?'':'s')+'</span></li>';}).join('')+'</ol>';
   }
   h+='</aside></div>';
@@ -349,7 +359,7 @@ function checkRows(){
   if(!list.length) return '<p class="empty-state">No member matches that name.</p>';
   return list.map(function(m){
     var p=S.present[m.id], here=active(m.id), st, acts;
-    var info=(m.g==='W'?'Woman':'Man')+(unlocked?', grade '+m.grade:'');
+    var info=(m.g==='W'?'Woman':'Man');
     if(!here){
       st=p&&p.gone?'Left tonight after '+p.games+' game'+(p.games===1?'':'s'):'Not here';
       acts='<button class="btn primary" data-act="checkin" data-id="'+m.id+'">Check in</button>';
@@ -405,14 +415,14 @@ function viewMembers(){
 function viewSettings(){
   var co='',fo='';
   for(var n=1;n<=8;n++) co+='<option value="'+n+'"'+(n===S.settings.courts?' selected':'')+'>'+n+'</option>';
-  for(var f=0;f<=6;f++) fo+='<option value="'+f+'"'+(f===S.settings.flex?' selected':'')+'>'+(f===0?'None, strict order':f+' place'+(f===1?'':'s'))+'</option>';
+  for(var f=0;f<=11;f++) fo+='<option value="'+f+'"'+(f===S.settings.flex?' selected':'')+'>'+(f===0?'None, strict order':f+' place'+(f===1?'':'s'))+'</option>';
   var armed=pending==='end';
   var exp=S.members.map(function(m){return m.name+', '+m.g+', '+m.grade;}).join('\n');
   return '<div class="panel"><h2>Settings</h2>'+
     '<div class="field"><label for="sCourts">Courts in use</label><select id="sCourts" data-change="courts">'+co+'</select></div>'+
     '<div class="field"><label for="sFlex">Queue flexibility</label><select id="sFlex" data-change="flex">'+fo+'</select>'+
     '<p>How far down the queue the app may look to build a better balanced game. The person who has waited longest always plays. More flexibility gives better matches. Less keeps the order stricter.</p></div>'+
-    '<div class="field"><label for="sRelax">Uneven nights</label><input type="checkbox" id="sRelax" data-change="relax"'+(S.settings.relax?' checked':'')+'> <span>Switch a mixed or level court to an open game when the queue cannot make one</span>'+
+    '<div class="field"><label for="sRelax">Uneven nights</label><input type="checkbox" id="sRelax" data-change="relax"'+(S.settings.relax?' checked':'')+'> <span>Let a Mixed, Men\'s or Ladies\' court play an Any game when the queue cannot make one</span>'+
     '<p>Leave this on. Without it, a short supply of women or men would stall a court or push some players on far more often than others.</p></div>'+
     '<div class="field"><label for="cp1">Organiser PIN</label><input type="password" inputmode="numeric" id="cp1" placeholder="New PIN" autocomplete="off"><input type="password" inputmode="numeric" id="cp2" placeholder="Repeat PIN" autocomplete="off"><button class="btn" data-act="changepin">Change PIN</button><p>The app locks again when you tap Lock, close it or switch to another app. <span id="cpMsg"></span></p></div>'+
     '<div class="field"><label>End the session</label><button class="btn warn'+(armed?' armed':'')+'" data-act="end">'+(armed?'Tap again to end the session':'End session')+'</button>'+
@@ -478,6 +488,8 @@ document.addEventListener('click',function(e){
     case 'finish': finish(ci); break;
     case 'finishFill': finish(ci); fill(ci); break;
     case 'cancel': cancel(ci); break;
+    case 'another': another(ci); break;
+    case 'setmode': S.courts[ci].mode=b.dataset.mode; S.courts[ci].note=''; S.courts[ci].rejects=[]; break;
     case 'checkin':
       var p=S.present[id];
       if(p&&p.gone){p.gone=false;p.rest=false;p.since=now();}
