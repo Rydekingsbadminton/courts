@@ -116,7 +116,8 @@ textarea{width:100%;min-height:7rem;resize:vertical}
 .panel h2{font-size:1.5rem;margin-bottom:.5rem}
 .panel h3{font-size:1.25rem;margin:1rem 0 .4rem}
 .queue ol{list-style:none;margin:0;padding:0}
-.queue li{display:grid;grid-template-columns:1.8rem 1fr auto;gap:.5rem;align-items:baseline;padding:.45rem .3rem;border-bottom:1px solid var(--border)}
+.mini{min-height:36px;padding:.2rem .6rem;font-size:.88rem;border-radius:8px}
+.queue li{display:grid;grid-template-columns:1.8rem 1fr auto auto;gap:.5rem;align-items:baseline;padding:.45rem .3rem;border-bottom:1px solid var(--border)}
 .queue li:last-child{border-bottom:0}
 .queue li.next{background:color-mix(in srgb,var(--shuttle) 22%,transparent);border-radius:6px}
 .queue .pos{font:700 1.1rem "Barlow Condensed",sans-serif;color:var(--muted)}
@@ -287,13 +288,13 @@ function fill(ci){
 function finish(ci){
   var c=S.courts[ci]; if(!c||!c.game) return;
   var g=c.game,t=now();
-  g.teams[0].concat(g.teams[1]).forEach(function(id){var p=S.present[id]; if(p){p.games++;p.since=t;}});
+  g.teams[0].concat(g.teams[1]).forEach(function(id){var p=S.present[id]; if(p){p.games++;p.since=t; if(p.leaveAfter){p.gone=true;p.leaveAfter=false;}}});
   g.teams.forEach(function(tm){var k=key(tm[0],tm[1]);S.pairs[k]=(S.pairs[k]||0)+1;});
   g.teams[0].forEach(function(x){g.teams[1].forEach(function(y){var k=key(x,y);S.opps[k]=(S.opps[k]||0)+1;});});
   S.played++;
   c.game=null; c.note=''; c.rejects=[];
 }
-function cancel(ci){var c=S.courts[ci]; if(c&&c.game){restore(c.game);c.game=null;c.note='';c.rejects=[];}}
+function cancel(ci){var c=S.courts[ci]; if(c&&c.game){restore(c.game);c.game.teams[0].concat(c.game.teams[1]).forEach(function(id){var p=S.present[id]; if(p&&p.leaveAfter){p.gone=true;p.leaveAfter=false;}});c.game=null;c.note='';c.rejects=[];}}
 function another(ci){var c=S.courts[ci]; if(!c||!c.game) return; var rj=(c.rejects||[]).concat([c.game.sig]); var old=c.game; restore(old); c.game=null; c.rejects=rj; fill(ci); if(!c.game){var n=c.note; restore(old); c.game=old; c.note=n; c.rejects=rj;}}
 
 function arm(k,fn){
@@ -310,7 +311,7 @@ function summary(){
   if(!here) return 'Nobody checked in yet.';
   return here+' here, '+playing+' on court, '+w+' waiting'+(rest?', '+rest+' on a break':'')+'. '+S.played+' game'+(S.played===1?'':'s')+' played tonight.';
 }
-function chip(id){var m=M(id);if(!m)return '';return '<span class="pl">'+esc(m.name)+''+'</span>';}
+function chip(id){var m=M(id);if(!m)return '';var lv=S.present[id]&&S.present[id].leaveAfter; return '<span class="pl">'+esc(m.name)+(lv?'<small>leaving</small>':'')+'</span>';}
 
 function courtCard(c,i){
   var seg='';
@@ -348,7 +349,8 @@ function viewCourts(){
   }else{
     h+='<ol>'+q.map(function(id,n){var m=M(id),p=S.present[id];
       return '<li class="'+(n<4?'next':'')+'"><span class="pos">'+(n+1)+'</span><span class="nm">'+esc(m.name)+''+'</span>'+
-        '<span class="st">'+mins(p.since)+' min, '+p.games+' game'+(p.games===1?'':'s')+'</span></li>';}).join('')+'</ol>';
+        '<span class="st">'+mins(p.since)+' min, '+p.games+' game'+(p.games===1?'':'s')+'</span>'+
+        '<button class="btn quiet mini" data-act="leave" data-id="'+id+'" aria-label="Check out '+esc(m.name)+'">Check out</button></li>';}).join('')+'</ol>';
   }
   h+='</aside></div>';
   return h;
@@ -366,24 +368,25 @@ function checkRows(){
     var p=S.present[m.id], here=active(m.id), st, acts;
     var info=(m.g==='W'?'Woman':'Man');
     if(!here){
-      st=p&&p.gone?'Left tonight after '+p.games+' game'+(p.games===1?'':'s'):'Not here';
+      st=p&&p.gone?'Checked out after '+p.games+' game'+(p.games===1?'':'s'):'Not here';
       acts='<button class="btn primary" data-act="checkin" data-id="'+m.id+'">Check in</button>';
     }else if(oc[m.id]){
       st='<span class="status-here">On court '+oc[m.id]+'</span>, '+p.games+' game'+(p.games===1?'':'s');
-      acts='<button class="btn" disabled>Break</button><button class="btn" disabled>Leave</button>';
+      if(p.leaveAfter){st+='. Checking out when this game ends';acts='<button class="btn" data-act="stay" data-id="'+m.id+'">Keep them in</button>';}
+      else acts='<button class="btn" data-act="leaveafter" data-id="'+m.id+'">Check out after this game</button>';
     }else if(p.rest){
       st='On a break, '+p.games+' game'+(p.games===1?'':'s');
-      acts='<button class="btn primary" data-act="back" data-id="'+m.id+'">Back in the queue</button><button class="btn" data-act="leave" data-id="'+m.id+'">Leave</button>';
+      acts='<button class="btn primary" data-act="back" data-id="'+m.id+'">Back in the queue</button><button class="btn" data-act="leave" data-id="'+m.id+'">Check out</button>';
     }else{
       st='<span class="status-here">Waiting '+mins(p.since)+' min</span>, '+p.games+' game'+(p.games===1?'':'s');
-      acts='<button class="btn" data-act="rest" data-id="'+m.id+'">Break</button><button class="btn" data-act="leave" data-id="'+m.id+'">Leave</button>';
+      acts='<button class="btn" data-act="rest" data-id="'+m.id+'">Break</button><button class="btn" data-act="leave" data-id="'+m.id+'">Check out</button>';
     }
     return '<div class="row"><div class="who"><strong>'+esc(m.name)+'</strong> <span class="muted small">'+info+'</span><br><span class="small muted">'+st+'</span></div><div class="acts">'+acts+'</div></div>';
   }).join('');
 }
 function viewCheckin(){
   return '<div class="panel"><h2>Who is here tonight</h2>'+
-    '<p class="muted small">Check people in as they arrive. Late arrivals join the back of the queue. A break keeps someone out of the queue until they return.</p>'+
+    '<p class="muted small">Check people in as they arrive and out as they leave. Late arrivals join the back of the queue. Checked out players are never picked. A break keeps someone out of the queue until they return.</p>'+
     '<div class="form" style="margin-top:.75rem"><label class="hide" for="find">Find a member</label><input type="text" id="find" placeholder="Find a member" value="'+esc(search)+'" autocomplete="off"></div>'+
     '<div class="rows" id="checkrows">'+checkRows()+'</div></div>';
 }
@@ -498,12 +501,14 @@ document.addEventListener('click',function(e){
     case 'setmode': S.courts[ci].mode=b.dataset.mode; S.courts[ci].note=''; S.courts[ci].rejects=[]; break;
     case 'checkin':
       var p=S.present[id];
-      if(p&&p.gone){p.gone=false;p.rest=false;p.since=now();}
+      if(p&&p.gone){p.gone=false;p.rest=false;p.leaveAfter=false;p.since=now();}
       else S.present[id]={since:now(),games:0,rest:false,order:S.seq++};
       break;
     case 'rest': if(S.present[id]) S.present[id].rest=true; break;
     case 'back': if(S.present[id]){S.present[id].rest=false;S.present[id].since=now();} break;
-    case 'leave': if(S.present[id]){S.present[id].gone=true;S.present[id].rest=false;} break;
+    case 'leave': if(S.present[id]){S.present[id].gone=true;S.present[id].rest=false;S.present[id].leaveAfter=false;} break;
+    case 'leaveafter': if(S.present[id]) S.present[id].leaveAfter=true; break;
+    case 'stay': if(S.present[id]) S.present[id].leaveAfter=false; break;
     case 'add':
       var nm=document.getElementById('nName').value.trim();
       if(!nm){document.getElementById('nName').focus();return;}
