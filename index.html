@@ -79,6 +79,10 @@ textarea{width:100%;min-height:7rem;resize:vertical}
 .court-head h2{font-size:1.6rem;margin-right:auto}
 .seg{display:flex;flex-wrap:wrap;gap:.4rem}
 .seg button{min-height:42px;padding:.35rem .95rem;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--ink);font:600 1rem Barlow,sans-serif;cursor:pointer}
+.actions.picking{flex-direction:column;align-items:stretch;gap:.4rem}
+.pickhead{font-weight:600}
+.seg .fillbtn{flex:1 1 5.5rem;min-height:48px;background:var(--floor);border-color:var(--floor);color:#fff}
+.seg .fillbtn:hover{background:var(--floor-deep)}
 .seg button[aria-pressed="true"]{background:var(--floor);border-color:var(--floor);color:#fff}
 
 .court{position:relative;aspect-ratio:13.4/6.1;background:var(--floor);border-radius:6px;overflow:hidden}
@@ -258,7 +262,9 @@ function pick(mode,excl){
   if(q.length<4) return {err:'Four players need to be waiting to fill this court. '+q.length+' waiting now.'};
   var pool=q.slice(0,Math.min(q.length,4+S.settings.flex));
   var type=WORDS[mode]?mode:'any';
-  var best=searchGame(pool,type,excl), note='';
+  var tpool=pool;
+  if(type==='men'||type==='women'){var gg=type==='men'?'M':'W'; tpool=pool.filter(function(id){return gw(id)===gg;});}
+  var best=tpool.length>=4?searchGame(tpool,type,excl):null, note='';
   var word=WORDS[type];
   if(!best&&type!=='any'&&S.settings.relax){
     best=searchGame(pool,'any',excl);
@@ -307,33 +313,32 @@ function summary(){
 function chip(id){var m=M(id);if(!m)return '';return '<span class="pl">'+esc(m.name)+''+'</span>';}
 
 function courtCard(c,i){
-  var seg='<div class="seg" role="group" aria-label="Game type for court '+(i+1)+'">'+MODES.map(function(m){return '<button data-act="setmode" data-mode="'+m[0]+'" data-ci="'+i+'" aria-pressed="'+(c.mode===m[0])+'">'+m[1]+'</button>';}).join('')+'</div>';
+  var seg='';
   var lines='<div class="bound"><div class="ln ss-t"></div><div class="ln ss-b"></div><div class="ln ls-l"></div><div class="ln ls-r"></div><div class="ln sh-l"></div><div class="ln sh-r"></div><div class="ln c-l"></div><div class="ln c-r"></div></div><div class="net"></div>';
   var body,meta='',acts;
   if(c.game){
     var g=c.game;
     body='<div class="teams"><div class="side">'+chip(g.teams[0][0])+chip(g.teams[0][1])+'</div><div class="side">'+chip(g.teams[1][0])+chip(g.teams[1][1])+'</div></div>';
     meta='<div class="meta"><span class="tag">'+esc(g.label)+'</span>'+''+'<span>On for '+mins(g.start)+' min</span></div>';
-    acts='<button class="btn primary" data-act="finishFill" data-ci="'+i+'">Finish and refill</button>'+
-         '<button class="btn" data-act="finish" data-ci="'+i+'">Finish</button>'+
+    acts='<button class="btn primary" data-act="finish" data-ci="'+i+'">Finish game</button>'+
          '<button class="btn" data-act="another" data-ci="'+i+'">Try another game</button>'+
          '<button class="btn quiet" data-act="cancel" data-ci="'+i+'">Cancel game</button>';
   }else{
     body='<div class="empty-court">Free</div>';
-    acts='<button class="btn primary" data-act="fill" data-ci="'+i+'">Fill court</button>';
+    acts='<p class="pickhead">Choose the next game</p><div class="seg" role="group" aria-label="Fill court '+(i+1)+' with">'+MODES.map(function(m){return '<button class="fillbtn" data-act="fillas" data-mode="'+m[0]+'" data-ci="'+i+'">'+m[1]+'</button>';}).join('')+'</div>';
   }
   return '<section class="court-card" aria-label="Court '+(i+1)+'">'+
     '<div class="court-head"><h2>Court '+(i+1)+'</h2></div>'+seg+
     '<div class="court'+(freshCourt===i?' fresh':'')+'">'+lines+body+'</div>'+meta+
     (c.note?'<p class="note">'+esc(c.note)+'</p>':'')+
-    '<div class="actions">'+acts+'</div></section>';
+    '<div class="actions'+(c.game?'':' picking')+'">'+acts+'</div></section>';
 }
 
 function viewCourts(){
   var q=queue();
   var empty=S.courts.filter(function(c){return !c.game;}).length;
   var h='<div class="layout"><div>';
-  h+='<div class="bar"><button class="btn primary" data-act="fillAll"'+(empty?'':' disabled')+'>Fill empty courts</button>'+
+  h+='<div class="bar"><button class="btn primary" data-act="fillAll"'+(empty?'':' disabled')+'>Fill all free courts with Any</button>'+
      '<span class="muted small">Players who have waited longest go on first. Teams are balanced by playing level.</span></div>';
   h+='<div class="courts">'+S.courts.map(courtCard).join('')+'</div></div>';
   h+='<aside class="panel queue" aria-label="Queue"><h2>Up next</h2>';
@@ -484,7 +489,8 @@ document.addEventListener('click',function(e){
       arm('forgot',function(){S.settings.pin=''; S.members.forEach(function(m){m.grade=3;}); pinMsg='';});
       break;
     case 'fill': fill(ci); break;
-    case 'fillAll': S.courts.forEach(function(c,i){if(!c.game) fill(i);}); break;
+    case 'fillAll': S.courts.forEach(function(c,i){if(!c.game){c.mode='any';c.rejects=[];fill(i);}}); break;
+    case 'fillas': S.courts[ci].mode=b.dataset.mode; S.courts[ci].rejects=[]; S.courts[ci].note=''; fill(ci); break;
     case 'finish': finish(ci); break;
     case 'finishFill': finish(ci); fill(ci); break;
     case 'cancel': cancel(ci); break;
